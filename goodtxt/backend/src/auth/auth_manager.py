@@ -47,7 +47,15 @@ class AuthManager:
     
     def __init__(self):
         self.settings = get_settings()
-        self.pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+        # 修复bcrypt版本兼容性问题
+        try:
+            self.pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+        except Exception as e:
+            # 如果bcrypt有问题，使用pbkdf2_sha256作为备用
+            import logging
+            logging.warning(f"bcrypt初始化失败，使用备用方案: {e}")
+            self.pwd_context = CryptContext(schemes=["pbkdf2_sha256"], deprecated="auto")
+        
         self.jwt_secret = self.settings.security.jwt_secret_key
         self.jwt_algorithm = "HS256"
         self.token_expire_hours = 24
@@ -62,7 +70,11 @@ class AuthManager:
         self.lockout_duration = timedelta(minutes=15)
     
     def hash_password(self, password: str) -> str:
-        """密码哈希"""
+        """密码哈希 - 修复bcrypt版本兼容性"""
+        # bcrypt有72字节长度限制，处理超长密码
+        if len(password.encode('utf-8')) > 72:
+            # 如果密码超过72字节，使用哈希值作为实际密码
+            password = hashlib.sha256(password.encode('utf-8')).hexdigest()[:72]
         return self.pwd_context.hash(password)
     
     def verify_password(self, password: str, password_hash: str) -> bool:
@@ -330,8 +342,5 @@ def require_admin(func):
     
     return wrapper
 
-
-# 创建全局认证管理器实例
-auth_manager = AuthManager()
 
 
