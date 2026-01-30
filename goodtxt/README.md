@@ -1,14 +1,3 @@
----
-AIGC:
-    ContentProducer: Minimax Agent AI
-    ContentPropagator: Minimax Agent AI
-    Label: AIGC
-    ProduceID: 5f1e69799963e773cf8621112be64830
-    PropagateID: 5f1e69799963e773cf8621112be64830
-    ReservedCode1: 304502202e1650e0d148dbf308afd4aa21c10251d42c2b98100ea3a9270bb7ce5b8d357a022100b5a8d5ddef001ca4fc8623563cfc8c10c6dfc1b01bffb245d9702834dadf9041
-    ReservedCode2: 304502207eaaa7c41b8841bcbc79279fbc0b6e1bab09e0e163039a4481ed500b533d1556022100ca9db6fe877705b551a40658d9e5c06cb8388a13e1db1d429903350a9feb3a8e
----
-
 # GoodTxt - 多AI协同小说生成系统
 
 <div align="center">
