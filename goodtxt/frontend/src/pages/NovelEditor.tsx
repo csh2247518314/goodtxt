@@ -68,23 +68,24 @@ const NovelEditor: React.FC = () => {
     
     try {
       setLoading(true);
-      // 这里会调用实际的API加载项目
-      // const projectData = await projectAPI.getProject(projectId);
-      // setProject(projectData);
+      setError(null);
       
-      // 临时使用模拟数据
+      // 调用实际的API加载项目
+      const projectData = await projectAPI.getProjectStatus(projectId);
+      
       setProject({
         id: projectId,
-        title: '星际征途',
-        genre: '科幻',
-        status: 'draft',
-        progress: 0,
-        totalWords: 0,
-        targetWords: 50000,
+        title: projectData.project.title,
+        genre: projectData.project.genre,
+        status: projectData.project.status,
+        progress: projectData.statistics.progress_percentage,
+        totalWords: projectData.statistics.total_words,
+        targetWords: 50000, // 默认目标字数
         aiAgents: ['协调者', '作者', '编辑', '研究者'],
-        chapters: []
+        chapters: projectData.chapters || []
       });
     } catch (err) {
+      console.error('加载项目失败:', err);
       setError(err instanceof Error ? err.message : '加载项目失败');
     } finally {
       setLoading(false);
@@ -94,25 +95,22 @@ const NovelEditor: React.FC = () => {
   const createProject = async () => {
     try {
       setLoading(true);
-      // 调用创建项目API
-      // const response = await projectAPI.createProject(novelConfig);
-      // setProject(response.project);
+      setError(null);
       
-      // 临时使用模拟响应
-      const newProject = {
-        id: projectId,
-        title: novelConfig.title || '新小说项目',
-        genre: novelConfig.genre,
-        status: 'created',
-        progress: 0,
-        totalWords: 0,
-        targetWords: 50000,
-        aiAgents: ['协调者', '作者', '编辑', '研究者'],
-        chapters: []
-      };
-      setProject(newProject);
+      // 调用创建项目API
+      const response = await projectAPI.createProject(novelConfig);
+      
+      // 设置项目ID到URL并重新加载
+      const newProjectId = response.project_id;
+      window.history.pushState({}, '', `/editor?id=${newProjectId}`);
+      
+      // 重新加载项目
+      setTimeout(() => {
+        window.location.reload();
+      }, 500);
       
     } catch (err) {
+      console.error('创建项目失败:', err);
       setError(err instanceof Error ? err.message : '创建项目失败');
     } finally {
       setLoading(false);
@@ -135,36 +133,67 @@ const NovelEditor: React.FC = () => {
       setError(null);
 
       // 开始生成小说
-      // const response = await projectAPI.startGeneration(project.id, 3);
+      const response = await projectAPI.startGeneration(project.id, 3);
       
-      // 模拟生成过程
-      console.log('开始生成小说...', {
-        projectId: project.id,
-        config: novelConfig
-      });
+      console.log('开始生成小说...', response);
       
-      // 这里会启动真实的AI生成流程
-      // 生成完成后会通过WebSocket推送更新
+      // 显示成功消息并跳转到项目页面
       alert('小说生成已开始！请在项目列表中查看进度。');
+      window.location.href = '/projects';
       
     } catch (err) {
+      console.error('生成失败:', err);
       setError(err instanceof Error ? err.message : '生成失败');
     } finally {
       setIsGenerating(false);
     }
   };
 
-  const handleSave = () => {
-    // 保存逻辑
-    console.log('保存章节');
+  const handleSave = async () => {
+    if (!project || !activeChapter) {
+      setError('没有可保存的内容');
+      return;
+    }
+
+    try {
+      setError(null);
+      await chapterAPI.updateChapter(activeChapter.id, activeChapter.content);
+      alert('章节保存成功！');
+    } catch (err) {
+      console.error('保存失败:', err);
+      setError(err instanceof Error ? err.message : '保存失败');
+    }
   };
 
-  const handleExport = () => {
-    // 导出逻辑
-    console.log('导出项目');
+  const handleExport = async () => {
+    if (!project) {
+      setError('没有可导出的项目');
+      return;
+    }
+
+    try {
+      setError(null);
+      const blob = await projectAPI.exportProject(project.id, 'txt');
+      
+      // 创建下载链接
+      const url = window.URL.createObjectURL(new Blob([blob]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `${project.title}.txt`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+      
+      alert('项目导出成功！');
+    } catch (err) {
+      console.error('导出失败:', err);
+      setError(err instanceof Error ? err.message : '导出失败');
+    }
   };
 
-  const activeChapter = project.chapters.find(ch => ch.id === selectedChapter);
+  const activeChapter = project?.chapters?.find(ch => ch.chapter_id === selectedChapter) || 
+                      project?.chapters?.find(ch => ch.id === selectedChapter);
 
   return (
     <div className="space-y-6">
@@ -222,42 +251,52 @@ const NovelEditor: React.FC = () => {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-2">
-            {project.chapters.map((chapter) => (
-              <div
-                key={chapter.id}
-                className={cn(
-                  "p-3 rounded-lg border cursor-pointer transition-colors",
-                  selectedChapter === chapter.id 
-                    ? "border-primary bg-primary/5" 
-                    : "hover:bg-accent"
-                )}
-                onClick={() => setSelectedChapter(chapter.id)}
-              >
-                <div className="flex items-center justify-between mb-2">
-                  <h4 className="font-medium text-sm">{chapter.title}</h4>
-                  <Badge 
-                    variant={chapter.status === 'completed' ? 'default' : 'secondary'}
-                    className="text-xs"
-                  >
-                    {chapter.status === 'completed' ? '已完成' :
-                     chapter.status === 'generating' ? '生成中' : '草稿'}
-                  </Badge>
-                </div>
-                <div className="space-y-1">
-                  <div className="flex items-center justify-between text-xs text-muted-foreground">
-                    <span>{chapter.wordCount} 字</span>
-                    <span>{chapter.quality}% 质量</span>
+            {(project?.chapters || []).map((chapter) => {
+              const chapterId = chapter.chapter_id || chapter.id;
+              const chapterTitle = chapter.title || `第${chapter.chapter_number}章`;
+              const wordCount = chapter.word_count || chapter.wordCount || 0;
+              const quality = chapter.quality_score || chapter.quality || 0;
+              const status = chapter.status || 'draft';
+              const progress = chapter.progress || 0;
+              const aiAgent = chapter.ai_agent || chapter.aiAgent || 'AI代理';
+              
+              return (
+                <div
+                  key={chapterId}
+                  className={cn(
+                    "p-3 rounded-lg border cursor-pointer transition-colors",
+                    selectedChapter === chapterId 
+                      ? "border-primary bg-primary/5" 
+                      : "hover:bg-accent"
+                  )}
+                  onClick={() => setSelectedChapter(chapterId)}
+                >
+                  <div className="flex items-center justify-between mb-2">
+                    <h4 className="font-medium text-sm">{chapterTitle}</h4>
+                    <Badge 
+                      variant={status === 'completed' ? 'default' : 'secondary'}
+                      className="text-xs"
+                    >
+                      {status === 'completed' ? '已完成' :
+                       status === 'generating' ? '生成中' : '草稿'}
+                    </Badge>
                   </div>
-                  <Progress value={chapter.progress} className="h-1" />
+                  <div className="space-y-1">
+                    <div className="flex items-center justify-between text-xs text-muted-foreground">
+                      <span>{wordCount} 字</span>
+                      <span>{quality}% 质量</span>
+                    </div>
+                    <Progress value={progress} className="h-1" />
+                  </div>
+                  <div className="flex items-center justify-between mt-2">
+                    <span className="text-xs text-muted-foreground">{aiAgent}</span>
+                    <Button variant="ghost" size="sm" className="h-6 px-2">
+                      <Edit className="h-3 w-3" />
+                    </Button>
+                  </div>
                 </div>
-                <div className="flex items-center justify-between mt-2">
-                  <span className="text-xs text-muted-foreground">{chapter.aiAgent}</span>
-                  <Button variant="ghost" size="sm" className="h-6 px-2">
-                    <Edit className="h-3 w-3" />
-                  </Button>
-                </div>
-              </div>
-            ))}
+              );
+            })}
             <Button variant="outline" className="w-full mt-4">
               + 添加新章节
             </Button>
@@ -318,9 +357,9 @@ const NovelEditor: React.FC = () => {
                       <Sparkles className="h-5 w-5 animate-spin" />
                       <span>AI正在生成内容...</span>
                     </div>
-                    <Progress value={activeChapter.progress} className="h-2" />
+                    <Progress value={activeChapter.progress || 0} className="h-2" />
                     <p className="text-sm text-muted-foreground">
-                      当前章节进度: {activeChapter.progress}%
+                      当前章节进度: {activeChapter.progress || 0}%
                     </p>
                   </div>
                 ) : (
@@ -328,13 +367,13 @@ const NovelEditor: React.FC = () => {
                     <div className="border rounded-lg p-4 min-h-96">
                       <div className="prose max-w-none">
                         <div dangerouslySetInnerHTML={{ 
-                          __html: activeChapter?.content?.replace(/\n/g, '<br>') || '' 
+                          __html: (activeChapter?.content || '').replace(/\n/g, '<br>') 
                         }} />
                       </div>
                     </div>
                     <div className="flex items-center justify-between text-sm text-muted-foreground">
-                      <span>共 {activeChapter?.wordCount} 字</span>
-                      <span>质量评分: {activeChapter?.quality}%</span>
+                      <span>共 {activeChapter?.word_count || activeChapter?.wordCount || 0} 字</span>
+                      <span>质量评分: {activeChapter?.quality_score || activeChapter?.quality || 0}%</span>
                     </div>
                   </div>
                 )}
@@ -342,10 +381,12 @@ const NovelEditor: React.FC = () => {
 
               <TabsContent value="preview" className="mt-6">
                 <div className="border rounded-lg p-6">
-                  <h2 className="text-xl font-bold mb-4">{activeChapter?.title}</h2>
+                  <h2 className="text-xl font-bold mb-4">
+                    {activeChapter?.title || `第${activeChapter?.chapter_number || 1}章`}
+                  </h2>
                   <div className="prose max-w-none">
                     <div className="whitespace-pre-wrap">
-                      {activeChapter?.content}
+                      {activeChapter?.content || '暂无内容'}
                     </div>
                   </div>
                 </div>

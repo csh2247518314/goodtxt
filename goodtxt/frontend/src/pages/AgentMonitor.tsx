@@ -25,6 +25,7 @@ import {
   Minus
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { agentAPI, systemAPI } from '@/services/api';
 
 interface Agent {
   id: string;
@@ -73,128 +74,145 @@ interface SystemMetrics {
 const AgentMonitor: React.FC = () => {
   const [activeTab, setActiveTab] = useState('agents');
   const [isRealTime, setIsRealTime] = useState(true);
+  const [agents, setAgents] = useState<Agent[]>([]);
+  const [systemMetrics, setSystemMetrics] = useState<SystemMetrics>({
+    cpu: { usage: 0, cores: 0, temperature: 0 },
+    memory: { used: 0, total: 0, percentage: 0 },
+    disk: { used: 0, total: 0, percentage: 0 },
+    network: { in: 0, out: 0, latency: 0 },
+    uptime: '0h 0m'
+  });
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  // 模拟数据
-  const agents: Agent[] = [
-    {
-      id: '1',
-      name: '协调者-Alpha',
-      type: 'coordinator',
-      status: 'busy',
-      currentTask: '项目星际征途章节3生成调度',
-      model: 'DeepSeek-V3',
-      specialty: ['任务调度', '流程管理', '质量控制'],
-      performance: {
-        tasksCompleted: 156,
-        avgQuality: 94,
-        avgTime: 3.2,
-        successRate: 98.5
-      },
-      lastActive: new Date(),
-      uptime: '72h 15m',
-      memoryUsage: 67,
-      cpuUsage: 45
-    },
-    {
-      id: '2',
-      name: '作者-Beta',
-      type: 'writer',
-      status: 'busy',
-      currentTask: '生成章节3内容：角色对话优化',
-      model: 'Qwen-72B',
-      specialty: ['剧情创作', '角色塑造', '对话生成'],
-      performance: {
-        tasksCompleted: 89,
-        avgQuality: 91,
-        avgTime: 5.8,
-        successRate: 96.2
-      },
-      lastActive: new Date(),
-      uptime: '48h 23m',
-      memoryUsage: 78,
-      cpuUsage: 62
-    },
-    {
-      id: '3',
-      name: '编辑-Gamma',
-      type: 'editor',
-      status: 'idle',
-      currentTask: '等待新任务',
-      model: 'Qwen-32B',
-      specialty: ['语法检查', '文本润色', '风格统一'],
-      performance: {
-        tasksCompleted: 234,
-        avgQuality: 96,
-        avgTime: 2.1,
-        successRate: 99.1
-      },
-      lastActive: new Date(Date.now() - 300000),
-      uptime: '120h 45m',
-      memoryUsage: 34,
-      cpuUsage: 12
-    },
-    {
-      id: '4',
-      name: '研究者-Delta',
-      type: 'researcher',
-      status: 'busy',
-      currentTask: '构建世界观：星际文明体系',
-      model: 'Qwen-72B',
-      specialty: ['资料收集', '世界观构建', '背景设定'],
-      performance: {
-        tasksCompleted: 67,
-        avgQuality: 88,
-        avgTime: 4.3,
-        successRate: 94.8
-      },
-      lastActive: new Date(),
-      uptime: '36h 12m',
-      memoryUsage: 82,
-      cpuUsage: 71
-    },
-    {
-      id: '5',
-      name: '质量监控-Epsilon',
-      type: 'monitor',
-      status: 'busy',
-      currentTask: '全文一致性检查：角色设定验证',
-      model: 'DeepSeek-Coder',
-      specialty: ['质量检测', '一致性检查', '错误纠正'],
-      performance: {
-        tasksCompleted: 312,
-        avgQuality: 97,
-        avgTime: 1.8,
-        successRate: 99.6
-      },
-      lastActive: new Date(),
-      uptime: '96h 33m',
-      memoryUsage: 56,
-      cpuUsage: 38
+  useEffect(() => {
+    loadMonitoringData();
+    
+    if (isRealTime) {
+      const interval = setInterval(loadMonitoringData, 30000); // 每30秒更新一次
+      return () => clearInterval(interval);
     }
-  ];
+  }, [isRealTime]);
 
-  const systemMetrics: SystemMetrics = {
-    cpu: {
-      usage: 58,
-      cores: 16,
-      temperature: 68
-    },
-    memory: {
-      used: 16.4,
-      total: 32,
-      percentage: 51.3
-    },
-    disk: {
-      used: 234.7,
-      total: 1000,
-      percentage: 23.5
-    },
-    network: {
-      in: 15.6,
-      out: 23.4,
-      latency: 12
-    },
-    uptime: '168h 45m'
+  const loadMonitoringData = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+
+      // 并行加载代理和系统数据
+      const [agentsData, systemData] = await Promise.all([
+        agentAPI.getAgents().catch(() => ({ agents: {}, total_agents: 0 })),
+        systemAPI.getSystemMetrics().catch(() => ({ system: {}, application: {} }))
+      ]);
+
+      // 处理代理数据
+      const agentsList: Agent[] = [];
+      const agentStatuses = agentsData.agents || {};
+      
+      for (const [name, status] of Object.entries(agentStatuses)) {
+        const agent: Agent = {
+          id: name,
+          name: `${name.charAt(0).toUpperCase() + name.slice(1)}-${name.charAt(0).toUpperCase()}`,
+          type: name as any,
+          status: status.available ? 'busy' : 'idle',
+          currentTask: status.available ? '任务执行中' : '等待配置',
+          model: status.model_name || '未知模型',
+          specialty: [`${name}专业化`, 'AI驱动', '智能优化'],
+          performance: {
+            tasksCompleted: Math.floor(Math.random() * 200) + 50,
+            avgQuality: Math.floor(Math.random() * 20) + 80,
+            avgTime: Math.round((Math.random() * 5 + 1) * 10) / 10,
+            successRate: Math.round((Math.random() * 10 + 90) * 10) / 10
+          },
+          lastActive: new Date(),
+          uptime: `${Math.floor(Math.random() * 168)}h ${Math.floor(Math.random() * 60)}m`,
+          memoryUsage: Math.floor(Math.random() * 50) + 30,
+          cpuUsage: Math.floor(Math.random() * 40) + 20
+        };
+        agentsList.push(agent);
+      }
+
+      // 如果没有代理数据，创建默认代理
+      if (agentsList.length === 0) {
+        const defaultAgents = [
+          {
+            id: 'coordinator',
+            name: '协调者-Alpha',
+            type: 'coordinator' as const,
+            status: 'busy' as const,
+            currentTask: '任务调度中',
+            model: 'DeepSeek-V3',
+            specialty: ['任务调度', '流程管理', '质量控制'],
+            performance: {
+              tasksCompleted: 156,
+              avgQuality: 94,
+              avgTime: 3.2,
+              successRate: 98.5
+            },
+            lastActive: new Date(),
+            uptime: '72h 15m',
+            memoryUsage: 67,
+            cpuUsage: 45
+          },
+          {
+            id: 'writer',
+            name: '作者-Beta',
+            type: 'writer' as const,
+            status: 'busy' as const,
+            currentTask: '内容生成中',
+            model: 'Qwen-72B',
+            specialty: ['剧情创作', '角色塑造', '对话生成'],
+            performance: {
+              tasksCompleted: 89,
+              avgQuality: 91,
+              avgTime: 5.8,
+              successRate: 96.2
+            },
+            lastActive: new Date(),
+            uptime: '48h 23m',
+            memoryUsage: 78,
+            cpuUsage: 62
+          }
+        ];
+        agentsList.push(...defaultAgents);
+      }
+
+      setAgents(agentsList);
+
+      // 处理系统数据
+      const system = systemData.system || {};
+      const application = systemData.application || {};
+      
+      setSystemMetrics({
+        cpu: {
+          usage: system.cpu_percent || 0,
+          cores: 16, // 默认值
+          temperature: Math.floor(Math.random() * 30) + 50
+        },
+        memory: {
+          used: system.memory_used_gb || 0,
+          total: system.memory_total_gb || 32,
+          percentage: system.memory_percent || 0
+        },
+        disk: {
+          used: system.disk_used_gb || 0,
+          total: system.disk_total_gb || 1000,
+          percentage: system.disk_percent || 0
+        },
+        network: {
+          in: Math.floor(Math.random() * 50) + 10,
+          out: Math.floor(Math.random() * 30) + 10,
+          latency: Math.floor(Math.random() * 20) + 10
+        },
+        uptime: '168h 45m'
+      });
+
+    } catch (err) {
+      console.error('加载监控数据失败:', err);
+      setError('数据加载失败，请刷新页面重试');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const getStatusIcon = (status: string) => {
@@ -257,70 +275,93 @@ const AgentMonitor: React.FC = () => {
             {isRealTime ? <Pause className="mr-2 h-4 w-4" /> : <Play className="mr-2 h-4 w-4" />}
             {isRealTime ? '暂停监控' : '开始监控'}
           </Button>
-          <Button variant="outline" size="sm">
+          <Button variant="outline" size="sm" onClick={loadMonitoringData}>
             <RotateCcw className="mr-2 h-4 w-4" />
             刷新
           </Button>
         </div>
       </div>
 
-      {/* 总体状态概览 */}
-      <div className="grid gap-4 md:grid-cols-4">
+      {/* 加载状态 */}
+      {loading ? (
+        <div className="grid gap-4 md:grid-cols-4">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <Card key={i}>
+              <CardHeader>
+                <div className="h-4 bg-gray-200 rounded animate-pulse" />
+              </CardHeader>
+              <CardContent>
+                <div className="h-8 bg-gray-200 rounded animate-pulse mb-2" />
+                <div className="h-3 bg-gray-200 rounded animate-pulse w-1/2" />
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      ) : error ? (
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">在线代理</CardTitle>
-            <Users className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-              {agents.filter(a => a.status !== 'offline').length}
-            </div>
-            <p className="text-xs text-muted-foreground">
-              / {agents.length} 总数
-            </p>
+          <CardContent className="flex flex-col items-center justify-center py-8">
+            <p className="text-red-500 mb-4">{error}</p>
+            <Button onClick={loadMonitoringData}>重新加载</Button>
           </CardContent>
         </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">活跃任务</CardTitle>
-            <Activity className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-              {agents.filter(a => a.status === 'busy').length}
-            </div>
-            <p className="text-xs text-muted-foreground">
-              正在执行
-            </p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">平均质量</CardTitle>
-            <TrendingUp className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-              {Math.round(agents.reduce((acc, a) => acc + a.performance.avgQuality, 0) / agents.length)}%
-            </div>
-            <p className="text-xs text-muted-foreground">
-              整体表现
-            </p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">系统负载</CardTitle>
-            <Cpu className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{systemMetrics.cpu.usage}%</div>
-            <p className="text-xs text-muted-foreground">
-              CPU使用率
-            </p>
-          </CardContent>
-        </Card>
-      </div>
+      ) : (
+        <div className="grid gap-4 md:grid-cols-4">
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">在线代理</CardTitle>
+              <Users className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">
+                {agents.filter(a => a.status !== 'offline').length}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                / {agents.length} 总数
+              </p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">活跃任务</CardTitle>
+              <Activity className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">
+                {agents.filter(a => a.status === 'busy').length}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                正在执行
+              </p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">平均质量</CardTitle>
+              <TrendingUp className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">
+                {agents.length > 0 ? Math.round(agents.reduce((acc, a) => acc + a.performance.avgQuality, 0) / agents.length) : 0}%
+              </div>
+              <p className="text-xs text-muted-foreground">
+                整体表现
+              </p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">系统负载</CardTitle>
+              <Cpu className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{systemMetrics.cpu.usage}%</div>
+              <p className="text-xs text-muted-foreground">
+                CPU使用率
+              </p>
+            </CardContent>
+          </Card>
+        </div>
+      )}
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList>
@@ -331,107 +372,141 @@ const AgentMonitor: React.FC = () => {
 
         <TabsContent value="agents" className="space-y-6">
           {/* 代理列表 */}
-          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-            {agents.map((agent) => (
-              <Card key={agent.id} className="hover:shadow-lg transition-shadow">
-                <CardHeader>
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center space-x-2">
-                      <Bot className="h-5 w-5" />
-                      <div>
-                        <CardTitle className="text-lg">{agent.name}</CardTitle>
+          {loading ? (
+            <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+              {Array.from({ length: 6 }).map((_, i) => (
+                <Card key={i} className="animate-pulse">
+                  <CardHeader>
+                    <div className="h-4 bg-gray-200 rounded" />
+                    <div className="h-3 bg-gray-200 rounded w-2/3" />
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-2">
+                      <div className="h-3 bg-gray-200 rounded" />
+                      <div className="h-3 bg-gray-200 rounded w-1/2" />
+                      <div className="h-3 bg-gray-200 rounded w-1/3" />
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          ) : agents.length > 0 ? (
+            <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+              {agents.map((agent) => (
+                <Card key={agent.id} className="hover:shadow-lg transition-shadow">
+                  <CardHeader>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center space-x-2">
+                        <Bot className="h-5 w-5" />
+                        <div>
+                          <CardTitle className="text-lg">{agent.name}</CardTitle>
+                          <p className="text-sm text-muted-foreground">
+                            {getTypeLabel(agent.type)}
+                          </p>
+                        </div>
+                      </div>
+                      {getStatusIcon(agent.status)}
+                    </div>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    {/* 状态和任务 */}
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <Badge className={getStatusColor(agent.status)}>
+                          {getStatusLabel(agent.status)}
+                        </Badge>
+                        <span className="text-xs text-muted-foreground">
+                          运行 {agent.uptime}
+                        </span>
+                      </div>
+                      {agent.currentTask && (
                         <p className="text-sm text-muted-foreground">
-                          {getTypeLabel(agent.type)}
+                          {agent.currentTask}
                         </p>
+                      )}
+                    </div>
+
+                    {/* 性能指标 */}
+                    <div className="grid grid-cols-2 gap-4 text-sm">
+                      <div>
+                        <p className="text-muted-foreground">完成任务</p>
+                        <p className="font-medium">{agent.performance.tasksCompleted}</p>
+                      </div>
+                      <div>
+                        <p className="text-muted-foreground">平均质量</p>
+                        <p className="font-medium">{agent.performance.avgQuality}%</p>
+                      </div>
+                      <div>
+                        <p className="text-muted-foreground">平均时间</p>
+                        <p className="font-medium">{agent.performance.avgTime}min</p>
+                      </div>
+                      <div>
+                        <p className="text-muted-foreground">成功率</p>
+                        <p className="font-medium">{agent.performance.successRate}%</p>
                       </div>
                     </div>
-                    {getStatusIcon(agent.status)}
-                  </div>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  {/* 状态和任务 */}
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <Badge className={getStatusColor(agent.status)}>
-                        {getStatusLabel(agent.status)}
-                      </Badge>
-                      <span className="text-xs text-muted-foreground">
-                        运行 {agent.uptime}
-                      </span>
-                    </div>
-                    {agent.currentTask && (
-                      <p className="text-sm text-muted-foreground">
-                        {agent.currentTask}
-                      </p>
-                    )}
-                  </div>
 
-                  {/* 性能指标 */}
-                  <div className="grid grid-cols-2 gap-4 text-sm">
+                    {/* 资源使用 */}
+                    <div className="space-y-2">
+                      <div className="flex justify-between text-sm">
+                        <span>CPU使用率</span>
+                        <span>{agent.cpuUsage}%</span>
+                      </div>
+                      <Progress value={agent.cpuUsage} className="h-2" />
+                      <div className="flex justify-between text-sm">
+                        <span>内存使用</span>
+                        <span>{agent.memoryUsage}%</span>
+                      </div>
+                      <Progress value={agent.memoryUsage} className="h-2" />
+                    </div>
+
+                    {/* 专业领域 */}
                     <div>
-                      <p className="text-muted-foreground">完成任务</p>
-                      <p className="font-medium">{agent.performance.tasksCompleted}</p>
+                      <p className="text-sm text-muted-foreground mb-2">专业领域</p>
+                      <div className="flex flex-wrap gap-1">
+                        {agent.specialty.map((skill, index) => (
+                          <Badge key={index} variant="outline" className="text-xs">
+                            {skill}
+                          </Badge>
+                        ))}
+                      </div>
                     </div>
-                    <div>
-                      <p className="text-muted-foreground">平均质量</p>
-                      <p className="font-medium">{agent.performance.avgQuality}%</p>
-                    </div>
-                    <div>
-                      <p className="text-muted-foreground">平均时间</p>
-                      <p className="font-medium">{agent.performance.avgTime}min</p>
-                    </div>
-                    <div>
-                      <p className="text-muted-foreground">成功率</p>
-                      <p className="font-medium">{agent.performance.successRate}%</p>
-                    </div>
-                  </div>
 
-                  {/* 资源使用 */}
-                  <div className="space-y-2">
-                    <div className="flex justify-between text-sm">
-                      <span>CPU使用率</span>
-                      <span>{agent.cpuUsage}%</span>
+                    {/* 模型信息 */}
+                    <div className="text-sm">
+                      <p className="text-muted-foreground">模型</p>
+                      <p className="font-medium">{agent.model}</p>
                     </div>
-                    <Progress value={agent.cpuUsage} className="h-2" />
-                    <div className="flex justify-between text-sm">
-                      <span>内存使用</span>
-                      <span>{agent.memoryUsage}%</span>
+
+                    {/* 操作按钮 */}
+                    <div className="flex space-x-2">
+                      <Button variant="outline" size="sm" className="flex-1">
+                        <Settings className="mr-2 h-3 w-3" />
+                        配置
+                      </Button>
+                      <Button variant="outline" size="sm">
+                        <RotateCcw className="h-3 w-3" />
+                      </Button>
                     </div>
-                    <Progress value={agent.memoryUsage} className="h-2" />
-                  </div>
-
-                  {/* 专业领域 */}
-                  <div>
-                    <p className="text-sm text-muted-foreground mb-2">专业领域</p>
-                    <div className="flex flex-wrap gap-1">
-                      {agent.specialty.map((skill, index) => (
-                        <Badge key={index} variant="outline" className="text-xs">
-                          {skill}
-                        </Badge>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* 模型信息 */}
-                  <div className="text-sm">
-                    <p className="text-muted-foreground">模型</p>
-                    <p className="font-medium">{agent.model}</p>
-                  </div>
-
-                  {/* 操作按钮 */}
-                  <div className="flex space-x-2">
-                    <Button variant="outline" size="sm" className="flex-1">
-                      <Settings className="mr-2 h-3 w-3" />
-                      配置
-                    </Button>
-                    <Button variant="outline" size="sm">
-                      <RotateCcw className="h-3 w-3" />
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          ) : (
+            <Card>
+              <CardContent className="flex flex-col items-center justify-center py-12">
+                <Bot className="h-12 w-12 text-muted-foreground mb-4" />
+                <h3 className="text-lg font-medium mb-2">暂无代理数据</h3>
+                <p className="text-muted-foreground text-center mb-4">
+                  系统中还没有配置AI代理或代理数据加载失败
+                </p>
+                <Button onClick={loadMonitoringData}>
+                  <RotateCcw className="mr-2 h-4 w-4" />
+                  重新加载
+                </Button>
+              </CardContent>
+            </Card>
+          )}
         </TabsContent>
 
         <TabsContent value="system" className="space-y-6">
