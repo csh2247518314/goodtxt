@@ -18,6 +18,8 @@ from passlib.context import CryptContext
 import bcrypt
 
 from ..config.settings import get_settings
+from ..database.db_manager import user_db
+import json
 
 
 class UserRole(Enum):
@@ -117,39 +119,37 @@ class AuthManager:
     
     def create_user(self, username: str, email: str, password: str, role: UserRole = UserRole.USER) -> User:
         """创建用户"""
-        if username in [u.username for u in self.users.values()]:
+        # 检查用户名和邮箱是否已存在
+        if user_db.check_username_exists(username):
             raise ValueError("用户名已存在")
-        if email in [u.email for u in self.users.values()]:
+        if user_db.check_email_exists(email):
             raise ValueError("邮箱已存在")
         
-        # 验证密码强度（临时禁用以允许注册）
-        # if not self._validate_password_strength(password):
-        #     raise ValueError("密码强度不够，至少需要6位，包含字母或数字")
-        
-        # 临时允许任何密码进行测试
+        # 验证密码强度
         if len(password) < 4:
             raise ValueError("密码至少需要4位")
         
-        # 使用 UUID 生成唯一用户 ID
-        user_id = f"user_{uuid.uuid4().hex[:12]}"
+        # 生成用户数据
         password_hash = self.hash_password(password)
         api_key = self._generate_api_key()
+        user_data = {
+            'username': username,
+            'email': email,
+            'password_hash': password_hash,
+            'role': role.value,
+            'api_key': api_key,
+            'settings': {"theme": "light", "language": "zh-CN"}
+        }
         
-        user = User(
-            user_id=user_id,
-            username=username,
-            email=email,
-            password_hash=password_hash,
-            role=role,
-            created_at=datetime.now(),
-            last_login=None,
-            is_active=True,
-            api_key=api_key,
-            settings={"theme": "light", "language": "zh-CN"}
-        )
+        # 保存到数据库
+        user_id = user_db.create_user(user_data)
         
-        self.users[user_id] = user
-        return user
+        # 返回用户对象
+        db_user = user_db.get_user_by_id(user_id)
+        if not db_user:
+            raise ValueError("创建用户失败")
+        
+        return self._db_user_to_user_obj(db_user)
     
     def authenticate_user(self, username: str, password: str) -> Optional[User]:
         """用户认证"""
@@ -157,15 +157,23 @@ class AuthManager:
         if self._is_user_locked(username):
             return None
         
-        for user in self.users.values():
-            if user.username == username and user.is_active:
-                if self.verify_password(password, user.password_hash):
-                    # 登录成功，清除失败记录
-                    if username in self.login_attempts:
-                        del self.login_attempts[username]
-                    
-                    user.last_login = datetime.now()
-                    return user
+        # 从数据库获取用户
+        db_user = user_db.get_user_by_username(username)
+        if not db_user or not db_user['is_active']:
+            self._record_login_attempt(username)
+            return None
+        
+        # 验证密码
+        if self.verify_password(password, db_user['password_hash']):
+            # 登录成功，清除失败记录
+            if username in self.login_attempts:
+                del self.login_attempts[username]
+            
+            # 更新登录时间
+            user_db.update_user_login_time(db_user['user_id'])
+            
+            # 返回用户对象
+            return self._db_user_to_user_obj(db_user)
         
         # 登录失败，记录失败次数
         self._record_login_attempt(username)
@@ -205,9 +213,15 @@ class AuthManager:
     def get_user_by_token(self, token: str) -> Optional[User]:
         """通过令牌获取用户"""
         user_id = self.verify_token(token)
-        if user_id and user_id in self.users:
-            return self.users[user_id]
-        return None
+        if not user_id:
+            return None
+        
+        # 从数据库获取用户
+        db_user = user_db.get_user_by_id(user_id)
+        if not db_user or not db_user['is_active']:
+            return None
+        
+        return self._db_user_to_user_obj(db_user)
     
     def get_user_by_api_key(self, api_key: str) -> Optional[User]:
         """通过API密钥获取用户"""
@@ -229,35 +243,55 @@ class AuthManager:
     
     def get_all_users(self) -> List[User]:
         """获取所有用户"""
-        return list(self.users.values())
+        db_users = user_db.get_all_users()
+        return [self._db_user_to_user_obj(db_user) for db_user in db_users]
     
     def get_user_by_id(self, user_id: str) -> Optional[User]:
         """根据ID获取用户"""
-        return self.users.get(user_id)
+        db_user = user_db.get_user_by_id(user_id)
+        if not db_user:
+            return None
+        return self._db_user_to_user_obj(db_user)
     
     def update_user_role(self, user_id: str, new_role: UserRole) -> bool:
         """更新用户角色"""
-        user = self.users.get(user_id)
-        if not user:
-            return False
-        
-        user.role = new_role
-        return True
+        return user_db.update_user_role(user_id, new_role.value)
     
     def delete_user(self, user_id: str) -> bool:
         """删除用户"""
-        if user_id not in self.users:
-            return False
+        return user_db.delete_user(user_id)
+    
+    def _db_user_to_user_obj(self, db_user: Dict) -> User:
+        """将数据库用户数据转换为User对象"""
+        # 处理日期时间字段
+        created_at = db_user['created_at']
+        if isinstance(created_at, str):
+            created_at = datetime.fromisoformat(created_at.replace('Z', '+00:00'))
         
-        # 删除用户
-        del self.users[user_id]
+        last_login = db_user['last_login']
+        if last_login and isinstance(last_login, str):
+            last_login = datetime.fromisoformat(last_login.replace('Z', '+00:00'))
         
-        # 清理相关令牌
-        tokens_to_remove = [token for token, uid in self.tokens.items() if uid == user_id]
-        for token in tokens_to_remove:
-            del self.tokens[token]
+        # 处理设置字段
+        settings = {}
+        if db_user['settings']:
+            try:
+                settings = json.loads(db_user['settings'])
+            except (json.JSONDecodeError, TypeError):
+                settings = {}
         
-        return True
+        return User(
+            user_id=db_user['user_id'],
+            username=db_user['username'],
+            email=db_user['email'],
+            password_hash=db_user['password_hash'],
+            role=UserRole(db_user['role']),
+            created_at=created_at,
+            last_login=last_login,
+            is_active=bool(db_user['is_active']),
+            api_key=db_user['api_key'],
+            settings=settings
+        )
 
 
 # 全局认证管理器实例

@@ -213,6 +213,43 @@ async def generate_novel(
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@app.get("/projects")
+async def get_projects_list():
+    """获取项目列表"""
+    try:
+        novel_engine = app.state.novel_engine
+        
+        projects = []
+        for project_id, project in novel_engine.active_projects.items():
+            chapters = novel_engine.novel_content.get(project_id, [])
+            total_words = sum(ch.word_count for ch in chapters)
+            
+            projects.append({
+                "project_id": project_id,
+                "title": project.title,
+                "genre": project.genre.value,
+                "length": project.length.value,
+                "theme": project.theme,
+                "target_audience": project.target_audience,
+                "status": project.status,
+                "created_at": project.created_at.isoformat(),
+                "updated_at": getattr(project, 'updated_at', project.created_at).isoformat(),
+                "chapters_count": len(chapters),
+                "total_words": total_words,
+                "progress": len(chapters) / {"short": 5, "medium": 15, "long": 30, "epic": 50}.get(project.length.value, 15) * 100
+            })
+        
+        return {
+            "projects": projects,
+            "total_projects": len(projects),
+            "timestamp": datetime.now().isoformat()
+        }
+        
+    except Exception as e:
+        logger.error(f"Failed to get projects list: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @app.get("/projects/{project_id}")
 async def get_project_status(project_id: str):
     """获取项目状态"""
