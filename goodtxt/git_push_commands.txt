@@ -1,0 +1,29 @@
+#!/bin/bash
+# Git 提交和推送命令
+
+cd /workspace/goodtxt
+
+# 添加所有修改
+git add .
+
+# 提交更改
+git commit -m "修复前后端核心问题：API配置、数据持久化、数据库初始化
+
+- 前端：修复API地址配置，支持环境变量
+- 后端：实现SQLite数据库持久化存储
+- 数据库：创建完整的数据库结构和初始化脚本
+- API：修复路由不匹配问题
+- 部署：提供自动化部署脚本
+- 文档：创建完整的README指导文档
+
+主要文件：
+- frontend/.env.development, frontend/.env.production
+- backend/database/ (完整数据库模块)
+- scripts/init_database.py
+- quick_fix_deploy.sh
+- 修复说明.md, 修复完成报告.md"
+
+# 推送到远程仓库
+git push origin main
+
+echo "✅ 代码已成功推送到远程仓库！"
