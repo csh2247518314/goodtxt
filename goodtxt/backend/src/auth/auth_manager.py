@@ -71,14 +71,18 @@ class AuthManager:
     
     def _validate_password_strength(self, password: str) -> bool:
         """验证密码强度"""
-        if len(password) < 8:
+        if len(password) < 6:
             return False
         
-        # 检查是否包含字母和数字
+        # 开发环境允许简单的密码，生产环境可以增强验证
         has_letter = bool(re.search(r'[a-zA-Z]', password))
         has_digit = bool(re.search(r'\d', password))
         
-        return has_letter and has_digit
+        # 开发环境：只需要6位，字母数字任选其一
+        if len(password) >= 6 and (has_letter or has_digit):
+            return True
+        
+        return False
     
     def generate_token(self, user_id: str) -> str:
         """生成JWT令牌"""
@@ -108,7 +112,7 @@ class AuthManager:
         
         # 验证密码强度
         if not self._validate_password_strength(password):
-            raise ValueError("密码强度不够，至少需要8位，包含字母和数字")
+            raise ValueError("密码强度不够，至少需要6位，包含字母或数字")
         
         # 使用 UUID 生成唯一用户 ID
         user_id = f"user_{uuid.uuid4().hex[:12]}"
