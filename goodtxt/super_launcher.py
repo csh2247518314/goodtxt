@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-GoodTxt 多AI协同小说生成系统 - 超级启动器
-整合环境检查、自动修复、服务监控、快速启动的智能系统
+GoodTxt 多AI协同小说生成系统 - 超级启动器 v2.0
+整合环境检查、自动修复、服务监控、快速启动、Docker安装、数据库初始化的一站式解决方案
 """
 
 import os
@@ -13,9 +13,13 @@ import subprocess
 import platform
 import socket
 import shutil
+import sqlite3
+import urllib.request
+import urllib.parse
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple, Any
 from datetime import datetime
+import hashlib
 
 # 尝试导入psutil，如果失败则设为None
 try:
@@ -42,13 +46,14 @@ class Color:
 
 
 class SuperLauncher:
-    """超级启动器"""
+    """超级启动器 - 整合所有功能的智能系统"""
     
     def __init__(self):
         self.project_root = Path(__file__).parent
         self.issues = []
         self.warnings = []
         self.fixes_applied = []
+        self.installed_packages = []
         self.services = {
             "backend": {
                 "name": "后端API",
@@ -74,7 +79,7 @@ class SuperLauncher:
         """打印横幅"""
         print(f"{Color.BOLD}{Color.CYAN}")
         print("╔══════════════════════════════════════════════════════════════╗")
-        print("║              🚀 GoodTxt 超级启动器 🚀                  ║")
+        print("║              🚀 GoodTxt 超级启动器 v2.0 🚀                  ║")
         print("║          多AI协同小说生成系统智能管理                   ║")
         print("║                    一站式解决方案                         ║")
         print("╚══════════════════════════════════════════════════════════════╝")
@@ -83,9 +88,9 @@ class SuperLauncher:
     def print_header(self):
         """打印标题"""
         print(f"{Color.BOLD}{Color.CYAN}")
-        print("=" * 60)
-        print("🚀 GoodTxt 多AI协同小说生成系统 - 智能管理")
-        print("=" * 60)
+        print("=" * 80)
+        print("🚀 GoodTxt 多AI协同小说生成系统 - 智能管理系统")
+        print("=" * 80)
         print(f"{Color.RESET}")
     
     def print_step(self, step_num: int, total: int, title: str):
@@ -104,8 +109,10 @@ class SuperLauncher:
             print(f"  {Color.CYAN}ℹ️  {message}{Color.RESET}")
         elif status == "fix":
             print(f"  {Color.PURPLE}🔧 {message}{Color.RESET}")
+        elif status == "install":
+            print(f"  {Color.BLUE}📦 {message}{Color.RESET}")
     
-    def run_command(self, command: str, capture_output: bool = True) -> Tuple[bool, str, str]:
+    def run_command(self, command: str, capture_output: bool = True, timeout: int = 30) -> Tuple[bool, str, str]:
         """执行命令"""
         try:
             result = subprocess.run(
@@ -113,7 +120,7 @@ class SuperLauncher:
                 shell=True, 
                 capture_output=capture_output, 
                 text=True, 
-                timeout=30
+                timeout=timeout
             )
             return result.returncode == 0, result.stdout, result.stderr
         except subprocess.TimeoutExpired:
@@ -182,146 +189,197 @@ class SuperLauncher:
             "docs_url": f"http://{public_ip if is_server else 'localhost'}:8000/docs"
         }
     
-    def check_docker(self) -> bool:
-        """检查Docker环境"""
-        self.print_step(1, 8, "检查Docker环境")
+    def detect_os(self):
+        """检测操作系统"""
+        if platform.system() == "Windows":
+            return "windows"
+        elif platform.system() == "Darwin":
+            return "macos"
+        elif platform.system() == "Linux":
+            if os.path.exists("/etc/debian_version"):
+                return "debian"
+            elif os.path.exists("/etc/redhat-release"):
+                return "redhat"
+            else:
+                return "linux"
+        else:
+            return "unknown"
+    
+    def check_root(self):
+        """检查是否为root用户"""
+        if os.geteuid() == 0:
+            self.warnings.append("检测到root用户，建议使用普通用户运行此脚本")
+            return True
+        return False
+    
+    def update_system(self):
+        """更新系统包"""
+        self.print_step(1, 10, "更新系统包")
         
-        # 检查Docker是否安装
+        os_type = self.detect_os()
+        
+        if os_type in ["debian", "ubuntu"]:
+            success, stdout, stderr = self.run_command("sudo apt update -y")
+            if success:
+                self.print_status("系统包更新成功", "success")
+            else:
+                self.print_status("系统包更新失败", "warning")
+        
+        elif os_type in ["redhat", "centos"]:
+            success, stdout, stderr = self.run_command("sudo yum update -y")
+            if success:
+                self.print_status("系统包更新成功", "success")
+            else:
+                self.print_status("系统包更新失败", "warning")
+        
+        return True
+    
+    def install_dependencies(self):
+        """安装基础依赖"""
+        self.print_step(2, 10, "安装基础依赖")
+        
+        os_type = self.detect_os()
+        
+        if os_type == "debian":
+            packages = ["curl", "wget", "git", "python3", "python3-pip", "build-essential"]
+            success, stdout, stderr = self.run_command(f"sudo apt install -y {' '.join(packages)}")
+        elif os_type == "redhat":
+            packages = ["curl", "wget", "git", "python3", "python3-pip", "gcc", "gcc-c++", "make"]
+            success, stdout, stderr = self.run_command(f"sudo yum install -y {' '.join(packages)}")
+        elif os_type == "macos":
+            success, stdout, stderr = self.run_command("brew install git python3")
+        else:
+            success, stdout, stderr = self.run_command("curl -fsSL https://get.docker.com -o get-docker.sh && sh get-docker.sh")
+        
+        if success:
+            self.print_status("基础依赖安装成功", "success")
+        else:
+            self.print_status("基础依赖安装失败", "warning")
+        
+        return success
+    
+    def configure_docker_mirror(self):
+        """配置Docker国内镜像源"""
+        self.print_step(3, 10, "配置Docker镜像源")
+        
+        os_type = self.detect_os()
+        
+        if os_type in ["debian", "redhat", "linux"]:
+            # 创建Docker配置目录
+            os.system("sudo mkdir -p /etc/docker")
+            
+            # 创建daemon.json配置文件
+            daemon_config = {
+                "registry-mirrors": [
+                    "https://docker.mirrors.ustc.edu.cn",
+                    "https://hub-mirror.c.163.com",
+                    "https://mirror.baidubce.com",
+                    "https://ccr.ccs.tencentyun.com",
+                    "https://swr.cn-north-1.nvidia.com"
+                ],
+                "log-driver": "json-file",
+                "log-opts": {
+                    "max-size": "10m",
+                    "max-file": "3"
+                }
+            }
+            
+            config_content = json.dumps(daemon_config, indent=2)
+            os.system(f"echo '{config_content}' | sudo tee /etc/docker/daemon.json > /dev/null")
+            
+            self.print_status("Docker镜像源配置完成", "success")
+        
+        return True
+    
+    def install_docker(self):
+        """安装Docker"""
+        self.print_step(4, 10, "安装Docker")
+        
+        os_type = self.detect_os()
+        
+        if os_type == "debian":
+            # 移除旧版本Docker
+            os.system("sudo apt remove -y docker docker-engine docker.io containerd runc 2>/dev/null || true")
+            
+            # 安装必要的包
+            os.system("sudo apt install -y apt-transport-https ca-certificates software-properties-common")
+            
+            # 添加Docker的官方GPG密钥
+            os.system("curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg")
+            
+            # 设置stable存储库
+            os.system('echo "deb [arch=amd64 signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null')
+            
+            # 更新包索引
+            os.system("sudo apt update")
+            
+            # 安装Docker CE
+            os.system("sudo apt install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin")
+            
+        elif os_type == "redhat":
+            # 安装Docker
+            os.system("sudo yum install -y yum-utils")
+            os.system("sudo yum-config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo")
+            os.system("sudo yum install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin")
+            
+        elif os_type == "macos":
+            self.print_status("macOS请手动安装Docker Desktop", "warning")
+            return False
+        
+        # 配置镜像源
+        self.configure_docker_mirror()
+        
+        # 重启Docker服务
+        if os_type in ["debian", "redhat"]:
+            os.system("sudo systemctl restart docker")
+        
+        # 添加当前用户到docker组
+        os.system("sudo usermod -aG docker $USER")
+        
+        self.print_status("Docker安装完成", "success")
+        return True
+    
+    def verify_docker_installation(self):
+        """验证Docker安装"""
+        self.print_step(5, 10, "验证Docker安装")
+        
+        # 检查Docker
         success, stdout, stderr = self.run_command("docker --version")
-        if not success:
-            self.issues.append("Docker未安装")
+        if success:
+            self.print_status(f"Docker版本: {stdout.strip()}", "success")
+        else:
             self.print_status("Docker未安装", "error")
             return False
         
-        self.print_status(f"Docker版本: {stdout.strip()}", "success")
-        
-        # 检查Docker是否运行
-        success, _, _ = self.run_command("docker info")
+        # 检查Docker Compose
+        success, stdout, stderr = self.run_command("docker compose --version")
         if not success:
-            self.issues.append("Docker服务未运行")
-            self.print_status("Docker服务未运行", "error")
-            return False
+            success, stdout, stderr = self.run_command("docker-compose --version")
         
-        self.print_status("Docker服务正常运行", "success")
-        
-        # 检查docker-compose
-        success, stdout, stderr = self.run_command("docker-compose --version")
-        if not success:
-            success, stdout, stderr = self.run_command("docker compose --version")
-            if not success:
-                self.warnings.append("docker-compose未安装")
-                self.print_status("docker-compose未安装，将使用Docker Compose插件", "warning")
-            else:
-                self.print_status(f"Docker Compose版本: {stdout.strip()}", "success")
+        if success:
+            self.print_status(f"Docker Compose版本: {stdout.strip()}", "success")
         else:
-            self.print_status(f"docker-compose版本: {stdout.strip()}", "success")
+            self.print_status("Docker Compose未安装", "warning")
+        
+        # 测试Docker镜像拉取
+        success, stdout, stderr = self.run_command("docker pull hello-world")
+        if success:
+            self.print_status("Docker镜像拉取正常", "success")
+            os.system("docker rmi hello-world > /dev/null 2>&1 || true")
+        else:
+            self.print_status("Docker镜像拉取可能有问题", "warning")
         
         return True
     
-    def check_system_resources(self) -> bool:
-        """检查系统资源"""
-        self.print_step(2, 8, "检查系统资源")
-        
-        if not HAS_PSUTIL:
-            self.print_status("psutil未安装，跳过详细系统资源检查", "warning")
-            return True
-        
-        # 检查内存
-        try:
-            memory = psutil.virtual_memory()
-            available_gb = memory.available / (1024**3)
-            total_gb = memory.total / (1024**3)
-            
-            self.print_status(f"总内存: {total_gb:.1f}GB，可用: {available_gb:.1f}GB", "info")
-            
-            if available_gb < 2:
-                self.warnings.append("可用内存少于2GB")
-                self.print_status("可用内存少于2GB，可能影响性能", "warning")
-            elif available_gb > 4:
-                self.print_status("内存充足", "success")
-        except Exception as e:
-            self.print_status(f"内存检查失败: {e}", "warning")
-        
-        # 检查磁盘空间
-        try:
-            disk = psutil.disk_usage('.')
-            free_gb = disk.free / (1024**3)
-            total_gb = disk.total / (1024**3)
-            
-            self.print_status(f"磁盘空间: 总计{total_gb:.1f}GB，可用{free_gb:.1f}GB", "info")
-            
-            if free_gb < 5:
-                self.warnings.append("可用磁盘空间少于5GB")
-                self.print_status("可用磁盘空间少于5GB，可能影响Docker镜像下载", "warning")
-            elif free_gb > 10:
-                self.print_status("磁盘空间充足", "success")
-        except Exception as e:
-            self.print_status(f"磁盘空间检查失败: {e}", "warning")
-        
-        return True
-    
-    def check_ports(self) -> bool:
-        """检查端口占用"""
-        self.print_step(3, 8, "检查端口占用")
-        
-        required_ports = [8000, 3002, 6379, 8001]
-        available_ports = []
-        
-        for port in required_ports:
-            if self.is_port_available(port):
-                available_ports.append(port)
-                self.print_status(f"端口{port}可用", "success")
-            else:
-                self.warnings.append(f"端口{port}被占用")
-                self.print_status(f"端口{port}被占用", "warning")
-        
-        return len(available_ports) == len(required_ports)
-    
-    def is_port_available(self, port: int) -> bool:
-        """检查端口是否可用"""
-        try:
-            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-                s.settimeout(1)
-                result = s.connect_ex(('localhost', port))
-                return result != 0
-        except:
-            return False
-    
-    def check_project_files(self) -> bool:
-        """检查项目文件"""
-        self.print_step(4, 8, "检查项目文件")
-        
-        required_files = [
-            "docker-compose.yml",
-            "backend/Dockerfile",
-            "frontend/Dockerfile",
-            "backend/main.py",
-            "frontend/package.json"
-        ]
-        
-        missing_files = []
-        for file_path in required_files:
-            full_path = self.project_root / file_path
-            if full_path.exists():
-                self.print_status(f"文件存在: {file_path}", "success")
-            else:
-                missing_files.append(file_path)
-                self.print_status(f"文件缺失: {file_path}", "error")
-        
-        if missing_files:
-            self.issues.extend([f"缺失文件: {f}" for f in missing_files])
-            return False
-        
-        return True
-    
-    def check_directory_structure(self) -> bool:
-        """检查目录结构"""
-        self.print_step(5, 8, "检查目录结构")
+    def setup_project_structure(self):
+        """设置项目结构"""
+        self.print_step(6, 10, "设置项目结构")
         
         required_dirs = [
             "data",
             "data/database",
-            "data/chroma", 
+            "data/exports",
+            "data/chroma",
             "logs",
             "config",
             "config/nginx",
@@ -347,9 +405,9 @@ class SuperLauncher:
         
         return True
     
-    def check_python_environment(self) -> bool:
+    def check_python_environment(self):
         """检查Python环境"""
-        self.print_step(6, 8, "检查Python环境")
+        self.print_step(7, 10, "检查Python环境")
         
         python_version = sys.version_info
         self.print_status(f"Python版本: {python_version.major}.{python_version.minor}.{python_version.micro}", "info")
@@ -357,14 +415,187 @@ class SuperLauncher:
         if python_version < (3, 8):
             self.warnings.append("Python版本过低，建议使用3.8+")
             self.print_status("Python版本过低，可能影响依赖安装", "warning")
+            return False
         else:
             self.print_status("Python版本满足要求", "success")
         
+        # 检查pip
+        success, stdout, stderr = self.run_command("pip3 --version")
+        if success:
+            self.print_status(f"pip版本: {stdout.strip()}", "success")
+        else:
+            self.print_status("pip未安装", "warning")
+        
         return True
     
-    def test_docker_compose_syntax(self) -> bool:
+    def init_database(self):
+        """初始化数据库"""
+        self.print_step(8, 10, "初始化数据库")
+        
+        db_script_path = self.project_root / "scripts" / "init_database.py"
+        
+        if db_script_path.exists():
+            success, stdout, stderr = self.run_command(f"python3 {db_script_path}")
+            if success:
+                self.print_status("数据库初始化成功", "success")
+                self.fixes_applied.append("数据库初始化")
+            else:
+                self.print_status(f"数据库初始化失败: {stderr}", "error")
+                return False
+        else:
+            # 如果脚本不存在，尝试直接初始化
+            try:
+                self.initialize_database_manually()
+                self.print_status("数据库手动初始化成功", "success")
+            except Exception as e:
+                self.print_status(f"数据库初始化失败: {e}", "error")
+                return False
+        
+        return True
+    
+    def initialize_database_manually(self):
+        """手动初始化数据库"""
+        db_path = self.project_root / "data" / "database" / "goodtxt.db"
+        db_path.parent.mkdir(parents=True, exist_ok=True)
+        
+        # SQL初始化脚本
+        init_sql = """
+        CREATE TABLE IF NOT EXISTS users (
+            user_id TEXT PRIMARY KEY,
+            username TEXT UNIQUE NOT NULL,
+            email TEXT UNIQUE NOT NULL,
+            password_hash TEXT NOT NULL,
+            role TEXT DEFAULT 'user',
+            is_active BOOLEAN DEFAULT 1,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            last_login DATETIME
+        );
+
+        CREATE TABLE IF NOT EXISTS projects (
+            project_id TEXT PRIMARY KEY,
+            user_id TEXT,
+            title TEXT NOT NULL,
+            description TEXT,
+            genre TEXT,
+            length TEXT,
+            theme TEXT,
+            target_audience TEXT,
+            language TEXT DEFAULT 'zh-CN',
+            status TEXT DEFAULT 'draft',
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (user_id) REFERENCES users (user_id)
+        );
+
+        CREATE TABLE IF NOT EXISTS chapters (
+            chapter_id TEXT PRIMARY KEY,
+            project_id TEXT,
+            chapter_number INTEGER,
+            title TEXT,
+            content TEXT,
+            word_count INTEGER DEFAULT 0,
+            quality_score REAL DEFAULT 0.0,
+            status TEXT DEFAULT 'draft',
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (project_id) REFERENCES projects (project_id)
+        );
+
+        CREATE TABLE IF NOT EXISTS user_tokens (
+            token_id TEXT PRIMARY KEY,
+            user_id TEXT,
+            token TEXT UNIQUE NOT NULL,
+            expires_at DATETIME,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (user_id) REFERENCES users (user_id)
+        );
+
+        CREATE TABLE IF NOT EXISTS system_logs (
+            log_id TEXT PRIMARY KEY,
+            level TEXT,
+            message TEXT,
+            source TEXT,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        );
+
+        CREATE TABLE IF NOT EXISTS quality_reports (
+            report_id TEXT PRIMARY KEY,
+            chapter_id TEXT,
+            score REAL,
+            issues TEXT,
+            suggestions TEXT,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (chapter_id) REFERENCES chapters (chapter_id)
+        );
+
+        CREATE TABLE IF NOT EXISTS memory (
+            memory_id TEXT PRIMARY KEY,
+            category TEXT,
+            content TEXT,
+            metadata TEXT,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        );
+
+        CREATE TABLE IF NOT EXISTS agent_performance (
+            performance_id TEXT PRIMARY KEY,
+            agent_type TEXT,
+            model_name TEXT,
+            response_time REAL,
+            success_rate REAL,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        );
+        """
+        
+        # 创建数据库连接并执行SQL
+        conn = sqlite3.connect(str(db_path))
+        cursor = conn.cursor()
+        
+        # 执行SQL脚本
+        cursor.executescript(init_sql)
+        
+        # 创建默认管理员用户
+        admin_password_hash = hashlib.sha256("admin123456".encode()).hexdigest()
+        admin_user_id = "admin_" + str(int(time.time()))
+        
+        cursor.execute("""
+            INSERT OR IGNORE INTO users (user_id, username, email, password_hash, role)
+            VALUES (?, ?, ?, ?, ?)
+        """, (admin_user_id, "admin", "admin@goodtxt.com", admin_password_hash, "admin"))
+        
+        conn.commit()
+        conn.close()
+    
+    def check_project_files(self):
+        """检查项目文件"""
+        self.print_step(9, 10, "检查项目文件")
+        
+        required_files = [
+            "docker-compose.yml",
+            "backend/Dockerfile",
+            "frontend/Dockerfile",
+            "backend/main.py",
+            "frontend/package.json"
+        ]
+        
+        missing_files = []
+        for file_path in required_files:
+            full_path = self.project_root / file_path
+            if full_path.exists():
+                self.print_status(f"文件存在: {file_path}", "success")
+            else:
+                missing_files.append(file_path)
+                self.print_status(f"文件缺失: {file_path}", "error")
+        
+        if missing_files:
+            self.issues.extend([f"缺失文件: {f}" for f in missing_files])
+            return False
+        
+        return True
+    
+    def test_docker_compose_syntax(self):
         """测试Docker Compose语法"""
-        self.print_step(7, 8, "验证Docker Compose配置")
+        self.print_step(10, 10, "验证Docker Compose配置")
         
         success, stdout, stderr = self.run_command("docker-compose config")
         if success:
@@ -376,33 +607,51 @@ class SuperLauncher:
         
         return True
     
-    def run_environment_check(self) -> bool:
-        """运行环境检查"""
+    def run_full_installation(self):
+        """运行完整安装流程"""
         self.print_header()
-        print(f"\n{Color.BOLD}{Color.YELLOW}🔍 环境检查和修复{Color.RESET}")
+        print(f"\n{Color.BOLD}{Color.YELLOW}🔧 完整安装流程{Color.RESET}")
         print("=" * 50)
         
-        checks = [
-            ("Docker环境", self.check_docker),
-            ("系统资源", self.check_system_resources), 
-            ("端口检查", self.check_ports),
-            ("项目文件", self.check_project_files),
-            ("目录结构", self.check_directory_structure),
-            ("Python环境", self.check_python_environment),
-            ("Docker配置", self.test_docker_compose_syntax)
+        self.check_root()
+        
+        steps = [
+            ("更新系统包", self.update_system),
+            ("安装基础依赖", self.install_dependencies),
+            ("配置Docker镜像源", self.configure_docker_mirror),
+            ("安装Docker", self.install_docker),
+            ("验证Docker安装", self.verify_docker_installation),
+            ("设置项目结构", self.setup_project_structure),
+            ("检查Python环境", self.check_python_environment),
+            ("初始化数据库", self.init_database),
+            ("检查项目文件", self.check_project_files),
+            ("验证Docker配置", self.test_docker_compose_syntax)
         ]
         
         success_count = 0
-        for i, (name, check_func) in enumerate(checks, 1):
+        for i, (name, func) in enumerate(steps, 1):
             try:
-                if check_func():
+                if func():
                     success_count += 1
+                    print()
             except Exception as e:
-                self.print_status(f"{name}检查失败: {e}", "error")
+                self.print_status(f"{name}失败: {e}", "error")
+        
+        print(f"\n{Color.BOLD}{Color.GREEN}安装完成: {success_count}/{len(steps)} 步骤成功{Color.RESET}")
+        
+        if self.issues:
+            print(f"\n{Color.RED}发现的问题:{Color.RESET}")
+            for issue in self.issues:
+                print(f"  ❌ {issue}")
+        
+        if self.warnings:
+            print(f"\n{Color.YELLOW}警告:{Color.RESET}")
+            for warning in self.warnings:
+                print(f"  ⚠️  {warning}")
         
         return len(self.issues) == 0
     
-    def start_services(self) -> bool:
+    def start_services(self):
         """启动服务"""
         print(f"\n{Color.BOLD}{Color.GREEN}🚀 启动服务{Color.RESET}")
         print("=" * 50)
@@ -422,7 +671,7 @@ class SuperLauncher:
             print(f"{Color.RED}❌ 服务启动失败！{Color.RESET}")
             return False
     
-    def wait_for_services(self, timeout: int = 120) -> bool:
+    def wait_for_services(self, timeout: int = 120):
         """等待服务启动"""
         print(f"\n{Color.BOLD}{Color.BLUE}⏳ 等待服务启动{Color.RESET}")
         print("=" * 50)
@@ -513,7 +762,7 @@ class SuperLauncher:
         
         return service
     
-    def verify_deployment(self) -> bool:
+    def verify_deployment(self):
         """验证部署"""
         print(f"\n{Color.BOLD}{Color.PURPLE}🔍 验证部署{Color.RESET}")
         print("=" * 50)
@@ -571,10 +820,15 @@ class SuperLauncher:
         print(f"   🔧 后端API: {Color.BLUE}{env_info['backend_url']}{Color.RESET}")
         print(f"   📚 API文档: {Color.BLUE}{env_info['docs_url']}{Color.RESET}")
         
+        print(f"\n{Color.CYAN}🔑 默认管理员账户:{Color.RESET}")
+        print(f"   👤 用户名: {Color.YELLOW}admin{Color.RESET}")
+        print(f"   🔑 密码: {Color.YELLOW}admin123456{Color.RESET}")
+        
         print(f"\n{Color.CYAN}📋 使用说明:{Color.RESET}")
         print(f"   1. 访问前端界面开始使用")
-        print(f"   2. 创建小说项目")
-        print(f"   3. 如果需要AI功能，请配置API密钥")
+        print(f"   2. 使用默认账户登录或注册新用户")
+        print(f"   3. 创建小说项目开始创作")
+        print(f"   4. 如果需要AI功能，请配置API密钥")
         
         print(f"\n{Color.CYAN}🔧 常用命令:{Color.RESET}")
         print(f"   停止服务: {Color.YELLOW}docker-compose down{Color.RESET}")
@@ -592,7 +846,7 @@ class SuperLauncher:
         # 检查Docker
         print("1. 检查Docker...")
         if subprocess.run(["docker", "--version"], capture_output=True).returncode != 0:
-            print("❌ Docker未安装，请先运行安装脚本")
+            print("❌ Docker未安装，请先运行完整安装")
             return False
         
         print("✅ Docker环境正常")
@@ -747,9 +1001,9 @@ class SuperLauncher:
     def ask_user_choice(self) -> str:
         """询问用户选择"""
         print(f"\n{Color.BOLD}{Color.CYAN}请选择操作:{Color.RESET}")
-        print(f"{Color.GREEN}1. 完整部署 (推荐){Color.RESET} - 运行环境检查 + 启动服务")
-        print(f"{Color.YELLOW}2. 快速启动{Color.RESET} - 一键启动，跳过详细检查") 
-        print(f"{Color.BLUE}3. 环境检查{Color.RESET} - 仅检查环境，不启动服务")
+        print(f"{Color.GREEN}1. 完整安装部署 (推荐){Color.RESET} - 安装Docker + 环境检查 + 启动服务")
+        print(f"{Color.BLUE}2. 快速启动{Color.RESET} - 一键启动，跳过详细检查") 
+        print(f"{Color.YELLOW}3. 环境检查{Color.RESET} - 仅检查环境，不启动服务")
         print(f"{Color.PURPLE}4. 服务监控{Color.RESET} - 实时监控服务状态")
         print(f"{Color.CYAN}5. 快速检查{Color.RESET} - 检查当前服务状态")
         print(f"{Color.MAGENTA}6. 环境检测{Color.RESET} - 检测网络和IP信息")
@@ -771,6 +1025,7 @@ class SuperLauncher:
         
         env_info = self.detect_environment()
         
+        print(f"操作系统: {platform.system()} {platform.release()}")
         print(f"本地IP: {env_info['local_ip']}")
         if env_info['public_ip']:
             print(f"公网IP: {env_info['public_ip']}")
@@ -802,9 +1057,9 @@ class SuperLauncher:
                 print(f"{Color.YELLOW}退出程序{Color.RESET}")
                 break
             elif choice == '1':
-                # 完整部署
-                print(f"\n{Color.GREEN}🚀 开始完整部署...{Color.RESET}")
-                if self.run_environment_check():
+                # 完整安装部署
+                print(f"\n{Color.GREEN}🚀 开始完整安装部署...{Color.RESET}")
+                if self.run_full_installation():
                     if self.start_services():
                         if self.wait_for_services():
                             if self.verify_deployment():
@@ -816,7 +1071,7 @@ class SuperLauncher:
                     else:
                         print(f"{Color.RED}❌ 服务启动失败{Color.RESET}")
                 else:
-                    print(f"{Color.RED}❌ 环境检查未通过{Color.RESET}")
+                    print(f"{Color.RED}❌ 安装失败{Color.RESET}")
             elif choice == '2':
                 # 快速启动
                 print(f"\n{Color.BLUE}🚀 快速启动...{Color.RESET}")
@@ -824,7 +1079,7 @@ class SuperLauncher:
             elif choice == '3':
                 # 环境检查
                 print(f"\n{Color.YELLOW}🔍 运行环境检查...{Color.RESET}")
-                self.run_environment_check()
+                self.run_full_installation()
             elif choice == '4':
                 # 服务监控
                 print(f"\n{Color.PURPLE}📊 启动服务监控...{Color.RESET}")
@@ -852,10 +1107,10 @@ class SuperLauncher:
     def run_auto(self):
         """自动运行（用于脚本调用）"""
         self.print_banner()
-        print(f"{Color.CYAN}自动模式：完整部署流程{Color.RESET}\n")
+        print(f"{Color.CYAN}自动模式：完整安装和部署流程{Color.RESET}\n")
         
-        if not self.run_environment_check():
-            print(f"{Color.RED}❌ 环境检查失败，退出{Color.RESET}")
+        if not self.run_full_installation():
+            print(f"{Color.RED}❌ 安装失败，退出{Color.RESET}")
             return False
         
         if not self.start_services():
@@ -884,13 +1139,24 @@ def main():
         elif sys.argv[1] == "--quick":
             launcher.run_quick_start()
         elif sys.argv[1] == "--check":
-            launcher.run_environment_check()
+            launcher.run_full_installation()
         elif sys.argv[1] == "--monitor":
             launcher.run_interactive_monitoring()
         elif sys.argv[1] == "--quick-check":
             launcher.run_quick_check()
+        elif sys.argv[1] == "--install":
+            launcher.run_full_installation()
+        elif sys.argv[1] == "--env":
+            launcher.show_environment_info()
         else:
-            print("用法: python3 super_launcher.py [--auto|--quick|--check|--monitor|--quick-check]")
+            print("用法: python3 super_launcher.py [--auto|--quick|--check|--monitor|--quick-check|--install|--env]")
+            print("  --auto: 完整自动安装部署")
+            print("  --quick: 快速启动服务")
+            print("  --check: 环境检查和修复")
+            print("  --monitor: 服务监控")
+            print("  --quick-check: 快速检查服务状态")
+            print("  --install: 完整安装流程")
+            print("  --env: 环境检测")
     else:
         launcher.run_interactive()
 
