@@ -1,0 +1,23 @@
+{
+  "timestamp": "2026-01-30 23:06:31",
+  "total_tests": 3,
+  "passed_tests": 2,
+  "failed_tests": 1,
+  "test_results": [
+    {
+      "test_name": "后端语法测试",
+      "success": true,
+      "duration": 0.48
+    },
+    {
+      "test_name": "前端构建测试",
+      "success": true,
+      "duration": 0.0
+    },
+    {
+      "test_name": "Docker配置测试",
+      "success": false,
+      "duration": 0.0
+    }
+  ]
+}

@@ -1,0 +1,172 @@
+# GoodTxt 多AI协同小说生成系统 - Git忽略文件
+
+# 数据和日志目录
+data/
+logs/
+*.db
+*.sqlite
+*.sqlite3
+
+# Docker相关
+.docker/
+
+# Python相关
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Node.js相关
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+.npm
+.eslintcache
+.parcel-cache
+.next
+.nuxt
+.vuepress/dist
+.serverless/
+.fusebox/**
+
+# 环境变量
+.env
+.env.local
+.env.*.local
+
+# IDE和编辑器
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# 操作系统
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# 临时文件
+*.tmp
+*.temp
+*.bak
+*.backup
+
+# 日志文件
+*.log
+logs/
+
+# 缓存文件
+.cache/
+*.cache
+
+# 监控和报告文件
+environment_check_report.json
+
+# 备份文件
+*.backup
+*.bak
+
+# 系统文件
+.directory
+
+# Docker Compose相关
+docker-compose.override.yml
+
+# 测试文件
+.tox/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# 构建产物
+*.tar.gz
+*.zip
+*.rar
+
+# 配置文件（敏感信息）
+config/secrets/
+*.secret
+*.key
+*.pem
+
+# 证书文件
+*.crt
+*.pem
+*.p12
+
+# 数据库备份
+*.dump
+*.sql
+
+# 文档生成
+docs/_build/
+
+# 本地开发配置
+.local/
+.local.env
+
+# PyCharm
+.idea/
+
+# VS Code
+.vscode/
+
+# 备份和临时文件
+*.bak
+*.orig
+*~
+.#*
+#*#
+
+# 系统隐藏文件
+.DS_Store
+Thumbs.db
+
+# 日志目录
+logs/
+*.log
+
+# 数据文件
+data/
+*.db
+*.sqlite
+
+# 证书和密钥
+*.key
+*.pem
+*.crt
+*.p12
+
+# Docker相关
+.dockerignore
+.docker/
+
+# 监控数据
+monitoring/data/
+
+# 导出文件
+data/exports/
