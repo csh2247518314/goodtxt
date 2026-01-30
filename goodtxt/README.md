@@ -98,7 +98,7 @@ npm run dev
 ```
 
 ### 4. 访问应用
-- **前端地址**: http://localhost:5173
+- **前端地址**: http://localhost:3002
 - **后端API**: http://localhost:8000
 - **API文档**: http://localhost:8000/docs
 
@@ -169,7 +169,7 @@ SECURITY_JWT_SECRET=your_secret_key
 ## 📱 使用指南
 
 ### 1. 用户注册登录
-1. 访问 http://localhost:5173
+1. 访问 http://localhost:3002
 2. 点击"立即注册"创建新账户
 3. 或使用默认管理员账户登录
 
@@ -402,7 +402,7 @@ sqlite3 data/database/goodtxt.db "SELECT COUNT(*) FROM users;"
    ```
 
 5. **访问系统**: 
-   - 前端: http://localhost:5173 (开发模式) 或 http://localhost:3002 (Docker模式)
+   - 前端: http://localhost:3002 (Docker模式)
    - 后端API: http://localhost:8000
    - API文档: http://localhost:8000/docs
 

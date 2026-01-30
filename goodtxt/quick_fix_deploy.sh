@@ -62,7 +62,7 @@ sleep 10
 echo ""
 echo "🎉 服务启动完成！"
 echo "=================================="
-echo "🌐 前端地址: http://localhost:5173"
+echo "🌐 前端地址: http://localhost:5173 (开发模式)"
 echo "🔗 后端API: http://localhost:8000"
 echo "📊 API文档: http://localhost:8000/docs"
 echo ""
@@ -80,6 +80,9 @@ echo ""
 echo "🔍 检查服务状态:"
 echo "   curl http://localhost:8000/health"
 echo "   curl http://localhost:5173"
+echo ""
+echo "💡 说明: 这是开发模式，前端使用Vite开发服务器(5173端口)"
+echo "   生产环境请使用Docker模式: http://localhost:3002"
 echo ""
 
 # 等待用户中断
