@@ -32,12 +32,11 @@ def create_users_table(conn):
         email TEXT UNIQUE NOT NULL,
         password_hash TEXT NOT NULL,
         role TEXT NOT NULL DEFAULT 'user',
-        created_at TIMESTAMP NOT NULL,
+        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
         last_login TIMESTAMP,
         is_active BOOLEAN NOT NULL DEFAULT 1,
         api_key TEXT UNIQUE NOT NULL,
         settings TEXT DEFAULT '{}',
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )
     """)

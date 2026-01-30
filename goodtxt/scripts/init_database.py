@@ -64,9 +64,14 @@ def main():
     
     print("\n🎉 数据库初始化完成！")
     print("\n📝 后续步骤:")
-    print("1. 启动后端服务: docker-compose up -d")
-    print("2. 启动前端服务: cd frontend && npm run dev")
-    print("3. 访问应用: http://localhost:3000")
+    print("1. 启动系统: docker-compose up -d")
+    print("   或者开发模式:")
+    print("   - 启动后端: cd backend && python -m uvicorn src.api.main:app --host 0.0.0.0 --port 8000")
+    print("   - 启动前端: cd frontend && npm run dev")
+    print("2. 访问应用:")
+    print("   - Docker模式: http://localhost:3002")
+    print("   - 开发模式: http://localhost:5173")
+    print("3. 默认登录: admin / admin123456")
     
     return True
 

@@ -71,7 +71,7 @@ agent_performance -- 代理性能
 
 ### 1. 克隆项目
 ```bash
-git clone <your-repository-url>
+git clone https://github.com/csh2247518314/goodtxt.git
 cd goodtxt
 ```
 
@@ -435,8 +435,8 @@ sqlite3 data/database/goodtxt.db "SELECT COUNT(*) FROM users;"
 
 ### 常见资源
 - **API文档**: http://localhost:8000/docs
-- **GitHub仓库**: <repository-url>
-- **问题反馈**: <issue-url>
+- **GitHub仓库**: https://github.com/csh2247518314/goodtxt
+- **问题反馈**: https://github.com/csh2247518314/goodtxt/issues
 
 ---
 

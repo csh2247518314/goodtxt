@@ -12,7 +12,6 @@ from datetime import datetime, timedelta
 from dataclasses import dataclass
 from enum import Enum
 import jwt
-from jose import JWTError
 from jwt import ExpiredSignatureError, InvalidTokenError
 from passlib.context import CryptContext
 import bcrypt
@@ -62,10 +61,6 @@ class AuthManager:
         self.jwt_algorithm = "HS256"
         self.token_expire_hours = 24
         
-        # 用户存储（实际应用中应该使用数据库）
-        self.users: Dict[str, User] = {}
-        self.tokens: Dict[str, str] = {}  # token -> user_id
-        
         # 登录失败跟踪
         self.login_attempts: Dict[str, Dict[str, int]] = {}  # username -> {attempts, locked_until}
         self.max_login_attempts = 5
@@ -85,15 +80,15 @@ class AuthManager:
     
     def _validate_password_strength(self, password: str) -> bool:
         """验证密码强度"""
-        if len(password) < 6:
+        if len(password) < 8:
             return False
         
-        # 开发环境允许简单的密码，生产环境可以增强验证
+        # 开发环境要求8位密码，生产环境可以增强验证
         has_letter = bool(re.search(r'[a-zA-Z]', password))
         has_digit = bool(re.search(r'\d', password))
         
-        # 开发环境：只需要6位，字母数字任选其一
-        if len(password) >= 6 and (has_letter or has_digit):
+        # 开发环境：8位密码，必须包含字母和数字
+        if len(password) >= 8 and has_letter and has_digit:
             return True
         
         return False
@@ -126,8 +121,8 @@ class AuthManager:
             raise ValueError("邮箱已存在")
         
         # 验证密码强度
-        if len(password) < 4:
-            raise ValueError("密码至少需要4位")
+        if len(password) < 8:
+            raise ValueError("密码至少需要8位")
         
         # 生成用户数据
         password_hash = self.hash_password(password)
@@ -225,17 +220,14 @@ class AuthManager:
     
     def get_user_by_api_key(self, api_key: str) -> Optional[User]:
         """通过API密钥获取用户"""
-        for user in self.users.values():
-            if user.api_key == api_key:
-                return user
-        return None
+        db_user = user_db.get_user_by_api_key(api_key)
+        if not db_user or not db_user['is_active']:
+            return None
+        return self._db_user_to_user_obj(db_user)
     
     def update_user_settings(self, user_id: str, settings: Dict[str, str]) -> bool:
         """更新用户设置"""
-        if user_id in self.users:
-            self.users[user_id].settings.update(settings)
-            return True
-        return False
+        return user_db.update_user_settings(user_id, settings)
     
     def _generate_api_key(self) -> str:
         """生成API密钥"""
