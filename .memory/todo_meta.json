@@ -1,0 +1,48 @@
+{
+  "todos": {
+    "Coordinator": {
+      "1": {
+        "id": "1",
+        "content": "克隆GitHub仓库到本地",
+        "details": "使用提供的凭据克隆 https://github.com/csh2247518314/goodtxt.git 到工作目录",
+        "status": "pending",
+        "priority": "high"
+      },
+      "2": {
+        "id": "2",
+        "content": "阅读项目文档",
+        "details": "查看README.md、项目文档、配置文件等，了解项目结构、依赖和说明",
+        "status": "pending",
+        "priority": "high"
+      },
+      "3": {
+        "id": "3",
+        "content": "分析所有源代码文件",
+        "details": "检查项目中的所有代码文件，识别语法错误、逻辑错误、代码风格问题等",
+        "status": "pending",
+        "priority": "high"
+      },
+      "4": {
+        "id": "4",
+        "content": "修复发现的错误",
+        "details": "根据分析结果修复代码错误、改善代码质量、更新配置文件等",
+        "status": "pending",
+        "priority": "high"
+      },
+      "5": {
+        "id": "5",
+        "content": "测试修复后的代码",
+        "details": "运行测试确保修复后的代码功能正常，没有引入新问题",
+        "status": "pending",
+        "priority": "medium"
+      },
+      "6": {
+        "id": "6",
+        "content": "推送修改到GitHub",
+        "details": "使用提供的令牌将修复后的代码提交并推送到原始仓库",
+        "status": "pending",
+        "priority": "high"
+      }
+    }
+  }
+}
