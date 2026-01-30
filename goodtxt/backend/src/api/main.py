@@ -768,7 +768,7 @@ async def get_system_logs(limit: int = 100, level: Optional[str] = None):
 async def login(credentials: Dict[str, Any]):
     """用户登录"""
     try:
-        from ..auth.auth_manager import auth_manager
+        from ..auth import auth_manager
         
         username = credentials.get("username")
         password = credentials.get("password")
@@ -805,7 +805,7 @@ async def login(credentials: Dict[str, Any]):
 async def register(user_data: Dict[str, Any]):
     """用户注册"""
     try:
-        from ..auth.auth_manager import auth_manager, UserRole
+        from ..auth import auth_manager, UserRole
         
         username = user_data.get("username")
         email = user_data.get("email")
@@ -838,7 +838,7 @@ async def register(user_data: Dict[str, Any]):
 async def get_current_user(request: Request):
     """获取当前用户信息"""
     try:
-        from ..auth.auth_manager import auth_manager
+        from ..auth import auth_manager
         
         # 从请求头获取令牌
         auth_header = request.headers.get("Authorization")
@@ -935,7 +935,7 @@ async def get_quality_history(limit: int = 50):
 async def get_users_list():
     """获取用户列表"""
     try:
-        from ..auth.auth_manager import auth_manager
+        from ..auth import auth_manager
         
         users = auth_manager.get_all_users()
         
@@ -964,7 +964,7 @@ async def get_users_list():
 async def update_user_role(user_id: str, role_data: Dict[str, Any]):
     """更新用户角色"""
     try:
-        from ..auth.auth_manager import auth_manager, UserRole
+        from ..auth import auth_manager, UserRole
         
         new_role = role_data.get("role")
         if not new_role:
@@ -997,7 +997,7 @@ async def update_user_role(user_id: str, role_data: Dict[str, Any]):
 async def delete_user(user_id: str):
     """删除用户"""
     try:
-        from ..auth.auth_manager import auth_manager
+        from ..auth import auth_manager
         
         success = auth_manager.delete_user(user_id)
         if not success:
@@ -1020,7 +1020,7 @@ async def delete_user(user_id: str):
 async def get_user_stats(user_id: str):
     """获取用户统计信息"""
     try:
-        from ..auth.auth_manager import auth_manager
+        from ..auth import auth_manager
         
         # 验证用户是否存在
         user = auth_manager.get_user_by_id(user_id)

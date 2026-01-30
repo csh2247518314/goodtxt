@@ -323,3 +323,7 @@ def require_admin(func):
     return wrapper
 
 
+# 创建全局认证管理器实例
+auth_manager = AuthManager()
+
+
