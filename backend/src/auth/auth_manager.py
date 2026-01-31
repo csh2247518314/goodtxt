@@ -11,10 +11,13 @@ from typing import Dict, List, Optional
 from datetime import datetime, timedelta
 from dataclasses import dataclass
 from enum import Enum
-import jwt
-from jwt import ExpiredSignatureError, InvalidTokenError
-from passlib.context import CryptContext
-import bcrypt
+import json
+import time
+from datetime import datetime, timedelta
+import base64
+# 使用内置库替代外部依赖
+import hashlib
+import hmac
 
 from ..config.settings import get_settings
 from ..database.db_manager import user_db
@@ -48,15 +51,7 @@ class AuthManager:
     
     def __init__(self):
         self.settings = get_settings()
-        # 修复bcrypt版本兼容性问题
-        try:
-            self.pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-        except Exception as e:
-            # 如果bcrypt有问题，使用pbkdf2_sha256作为备用
-            import logging
-            logging.warning(f"bcrypt初始化失败，使用备用方案: {e}")
-            self.pwd_context = CryptContext(schemes=["pbkdf2_sha256"], deprecated="auto")
-        
+        # 使用内置加密方法替代外部库
         self.jwt_secret = self.settings.security.jwt_secret_key
         self.jwt_algorithm = "HS256"
         self.token_expire_hours = 24
@@ -67,16 +62,33 @@ class AuthManager:
         self.lockout_duration = timedelta(minutes=15)
     
     def hash_password(self, password: str) -> str:
-        """密码哈希 - 修复bcrypt版本兼容性"""
-        # bcrypt有72字节长度限制，处理超长密码
-        if len(password.encode('utf-8')) > 72:
-            # 如果密码超过72字节，使用哈希值作为实际密码
-            password = hashlib.sha256(password.encode('utf-8')).hexdigest()[:72]
-        return self.pwd_context.hash(password)
+        """使用PBKDF2进行密码哈希"""
+        # 生成随机盐值
+        salt = secrets.token_hex(32)
+        # 使用PBKDF2进行哈希
+        pwdhash = hashlib.pbkdf2_hmac('sha256',
+                                      password.encode('utf-8'),
+                                      salt.encode('ascii'),
+                                      100000)  # 100,000次迭代
+        # 返回盐值+哈希值的组合
+        return salt + pwdhash.hex()
     
     def verify_password(self, password: str, password_hash: str) -> bool:
         """验证密码"""
-        return self.pwd_context.verify(password, password_hash)
+        if len(password_hash) < 64:  # 盐值至少32字节hex编码为64字符
+            return False
+        
+        # 分离盐值和哈希值
+        salt = password_hash[:64]
+        stored_hash = password_hash[64:]
+        
+        # 使用相同盐值对输入密码进行哈希
+        pwdhash = hashlib.pbkdf2_hmac('sha256',
+                                      password.encode('utf-8'),
+                                      salt.encode('ascii'),
+                                      100000)
+        # 比较哈希值
+        return hmac.compare_digest(stored_hash, pwdhash.hex())
     
     def _validate_password_strength(self, password: str) -> bool:
         """验证密码强度"""
@@ -94,22 +106,72 @@ class AuthManager:
         return False
     
     def generate_token(self, user_id: str) -> str:
-        """生成JWT令牌"""
+        """生成自定义令牌（替代JWT）"""
+        import hmac
+        import json
+        import base64
+        
+        # 创建payload
         payload = {
             "user_id": user_id,
-            "exp": datetime.utcnow() + timedelta(hours=self.token_expire_hours),
-            "iat": datetime.utcnow()
+            "exp": (datetime.utcnow() + timedelta(hours=self.token_expire_hours)).timestamp(),
+            "iat": datetime.utcnow().timestamp()
         }
-        return jwt.encode(payload, self.jwt_secret, algorithm=self.jwt_algorithm)
+        
+        # 编码header和payload
+        header = base64.urlsafe_b64encode(json.dumps({"alg": "HS256", "typ": "JWT"}).encode()).decode().rstrip('=')
+        payload = base64.urlsafe_b64encode(json.dumps(payload).encode()).decode().rstrip('=')
+        
+        # 创建签名
+        signature = hmac.new(
+            self.jwt_secret.encode(),
+            f"{header}.{payload}".encode(),
+            hashlib.sha256
+        ).digest()
+        signature = base64.urlsafe_b64encode(signature).decode().rstrip('=')
+        
+        return f"{header}.{payload}.{signature}"
     
     def verify_token(self, token: str) -> Optional[str]:
-        """验证JWT令牌"""
+        """验证自定义令牌（替代JWT）"""
+        import hmac
+        import json
+        import base64
+        
         try:
-            payload = jwt.decode(token, self.jwt_secret, algorithms=[self.jwt_algorithm])
-            return payload.get("user_id")
-        except ExpiredSignatureError:
-            return None
-        except InvalidTokenError:
+            parts = token.split('.')
+            if len(parts) != 3:
+                return None
+            
+            header, payload, signature = parts
+            
+            # 重新添加填充
+            header += '=' * (4 - len(header) % 4)
+            payload += '=' * (4 - len(payload) % 4)
+            signature += '=' * (4 - len(signature) % 4)
+            
+            # 验证签名
+            expected_signature = hmac.new(
+                self.jwt_secret.encode(),
+                f"{header}.{payload}".encode(),
+                hashlib.sha256
+            ).digest()
+            expected_signature = base64.urlsafe_b64encode(expected_signature).decode().rstrip('=')
+            
+            if not hmac.compare_digest(signature, expected_signature):
+                return None
+            
+            # 解码payload
+            decoded_payload = base64.urlsafe_b64decode(payload)
+            payload_dict = json.loads(decoded_payload)
+            
+            # 检查过期时间
+            exp = payload_dict.get('exp')
+            if exp and time.time() > exp:
+                return None
+            
+            return payload_dict.get('user_id')
+        except Exception:
             return None
     
     def create_user(self, username: str, email: str, password: str, role: UserRole = UserRole.USER) -> User:
@@ -289,16 +351,19 @@ class AuthManager:
 # 全局认证管理器实例
 auth_manager = AuthManager()
 
-# 创建默认管理员用户
-try:
-    admin_user = auth_manager.create_user(
-        username="admin",
-        email="admin@goodtxt.com",
-        password="admin123456",
-        role=UserRole.ADMIN
-    )
-except ValueError:
-    pass  # 用户已存在
+# 注意：生产环境不应自动创建默认管理员账户
+# 以下是示例代码，实际部署时应通过环境变量或命令行创建
+# if os.getenv('CREATE_DEFAULT_ADMIN'):
+#     try:
+#         admin_user = auth_manager.create_user(
+#             username=os.getenv('DEFAULT_ADMIN_USERNAME', 'admin'),
+#             email=os.getenv('DEFAULT_ADMIN_EMAIL', 'admin@example.com'),
+#             password=os.getenv('DEFAULT_ADMIN_PASSWORD', 'SecurePassword123!'),
+#             role=UserRole.ADMIN
+#         )
+#         print("默认管理员账户已创建")
+#     except ValueError as e:
+#         print(f"管理员账户创建失败: {e}")
 
 
 def require_auth(func):

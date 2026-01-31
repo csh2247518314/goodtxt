@@ -25,11 +25,15 @@ class SecurityConfig(BaseSettings):
         # 检查生产环境安全性
         if self.jwt_secret == "your-super-secret-jwt-key-change-in-production":
             import warnings
-            warnings.warn("警告：使用默认JWT密钥，存在安全风险！", UserWarning)
+            warnings.warn("警告：使用默认JWT密钥，存在安全风险！请在生产环境中设置强密钥！", UserWarning)
         
         # 环境变量检查
         if os.getenv('ENVIRONMENT') == 'production' and self.jwt_secret == "your-super-secret-jwt-key-change-in-production":
             raise ValueError("生产环境必须设置强JWT密钥！")
+        
+        # 强制要求密钥长度
+        if len(self.jwt_secret) < 32:
+            raise ValueError("JWT密钥长度必须至少为32个字符以确保安全性！")
     
     # API密钥管理
     api_key_header: str = Field(default="X-API-Key")

@@ -28,6 +28,40 @@ GoodTxt是一个基于多AI协同的智能小说生成系统，支持用户注�
 ### 技术特性
 - 🔄 **实时更新**：WebSocket实时通信
 - 💾 **数据库存储**：SQLite + Redis + ChromaDB 三层架构
+
+## 🔒 安全注意事项
+
+**重要**：在生产环境中部署前，请务必：
+
+1. **更改JWT密钥**：在 `.env` 文件中设置一个强密钥（至少32个字符）
+2. **配置AI API密钥**：至少配置一个AI服务提供商的API密钥
+3. **禁用默认管理员**：不要使用默认的管理员账户
+4. **设置HTTPS**：在生产环境中使用HTTPS协议
+
+## 🚀 部署说明
+
+### Docker部署（推荐）
+
+1. 克隆项目：
+   ```bash
+   git clone <repository-url>
+   cd goodtxt
+   ```
+
+2. 配置环境变量：
+   ```bash
+   cp .env.example .env
+   # 编辑 .env 文件，设置您的配置
+   ```
+
+3. 启动服务：
+   ```bash
+   docker-compose up -d
+   ```
+
+4. 访问应用：
+   - 前端：http://localhost:3002
+   - 后端API：http://localhost:8000
 - 🔒 **安全认证**：JWT令牌 + 密码哈希
 - 📱 **响应式设计**：支持移动端和桌面端
 - 🛠 **易于部署**：Docker + 脚本自动化
